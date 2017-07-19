@@ -6,9 +6,13 @@
 #include  <dirent.h>
 #include  <time.h>
 
+#include  "usg.h"
 #include  "ulog.h"
+#include  "ucomp.h"
 #include  "fmmod.h"
 
+
+#define DEF_EXTRA	".zip"
 
 /** ファイル一覧作成処理部分 */
 PATHES *SRC_Init( void );
@@ -38,36 +42,110 @@ int     BKUP_Mak_Dir( BKUP *, char * );
 int     BKUP_Upd_Fil( BKUP *, char * );
 int     BKUP_Del_Fil( BKUP *, char * );
 
+static UL_DATA *gs_ptLog = ( UL_DATA * )NULL;
+
+#define		ERR				"ERR"
+#define		INF				"INF"
+#define		DBG				"DBG"
+
+#define		SG_FILE			"backup.conf"
+#define		SG_KEY_LOG		"log_path"
+#define		SG_KEY_BACKUP	"backup"
+#define		SG_KEY_DO		"DO"
+
+
+static int gs_iTest = 1;
+
 int main( int iArgc, char *pcArgv[] )
 {
+	int   iRet;					/**< 戻り値参照用							 */
+	SGTBL tSg;					/**< SG値保持用								 */
 
-#if 1
+	char  *pcLogPath;			/**< ログ出力先								 */
 
-	BKUP tBackup;
+	int   iBackupCnt;			/**< バックアップ用カウンタ					 */
+	int   iBackupMax;			/**< バックアップ用カウンタ（最大数）		 */
+	char  *pcBackup;			/**< バックアップ対象用文字列				 */
+	char  cMaster_Tmp[ 512 ];   /**< バックアップ対象用文字列				 */
+	char  cBackup_Tmp[ 512 ];   /**< バックアップ対象用文字列				 */
+	BKUP  tBackup;				/**< バックアップ対象						 */
 
-	memset( &tBackup, 0x00, sizeof( tBackup ) );
-	strcpy( tBackup.cMaster, "C:\\prg\\C\\bkup\\test\\01master" );
-	strcpy( tBackup.cBackup, "C:\\prg\\C\\bkup\\test\\02backup" );
+	char  *pcDo;
 
-	( void )BKUP_Do( &tBackup );
 
-#else
-	PATHES *tpPath;
+	/*====================*/
+	/* SGファイル読み込み */
+	/*====================*/
 
-	tpPath = SRC_Init();
+	iRet = SG_Init( SG_FILE, &tSg );
+	if( iRet != 0 )
+	{
+		fprintf( stderr, "sg open error\n" );
+		fflush( stderr );
+		return 1;
+	}
 
-    ( void )SRC_SearchPath( &tpPath, "C:\\prg\\C\\bkup\\test\\01master" );
+	pcDo = SG_GetValue( &tSg, SG_KEY_DO, 0 );
+	if( pcDo != ( char * )NULL && strcmp( pcDo, "1" ) == 0 )
+	{
+		gs_iTest = 0;
+	}
 
-    ( void )SRC_Disp( &tpPath );
 
-	SRC_Fin( tpPath );
-#endif
+	/*==============*/
+	/* ログ出力設定 */
+	/*==============*/
+
+	/* ログ出力先 */
+	iRet = SG_GetCount( &tSg, SG_KEY_LOG );
+	if( iRet < 1 )
+	{
+		fprintf( stderr, "ログ出力未指定\n" );
+		fflush( stderr );
+		return 1;
+	}
+
+	/* ログ出力設定 */
+	pcLogPath = SG_GetValue( &tSg, SG_KEY_LOG, 0 );
+
+	fprintf( stderr, "log-path=[%s]\n", pcLogPath );
+	fflush( stderr );
+
+	gs_ptLog  = ULOG_Open( pcLogPath );
+
+	ULOG_SetDeny( gs_ptLog, DBG );
+
+
+	/*==================*/
+	/* バックアップ処理 */
+	/*==================*/
+
+	iBackupMax = SG_GetCount( &tSg, SG_KEY_BACKUP );
+
+	ULOG_Output( gs_ptLog, INF, "backup=[%d]", iBackupMax );
+
+	for( iBackupCnt = 0; iBackupCnt < iBackupMax; ++iBackupCnt )
+	{
+		pcBackup = SG_GetValue( &tSg, SG_KEY_BACKUP, iBackupCnt );
+
+
+		memset( cMaster_Tmp, 0x00, sizeof( cMaster_Tmp ) );
+		memset( cBackup_Tmp, 0x00, sizeof( cBackup_Tmp ) );
+
+		SG_GetDiv( pcBackup, ',', 0, cMaster_Tmp );
+		SG_GetDiv( pcBackup, ',', 1, cBackup_Tmp );
+
+		memset( &tBackup, 0x00, sizeof( tBackup ) );
+
+		SG_CutSp( cMaster_Tmp, tBackup.cMaster );
+		SG_CutSp( cBackup_Tmp, tBackup.cBackup );
+
+		( void )BKUP_Do( &tBackup );
+	}
 
     return 0;
 }
 
-static UL_DATA *gs_ptLog = ( UL_DATA * )NULL;
-#define		NTC		"NTC"
 
 int BKUP_Do( BKUP *ptData )
 {
@@ -83,16 +161,12 @@ int BKUP_Do( BKUP *ptData )
 	ptMaster = ( PATHES * )NULL;
 	ptBackup = ( PATHES * )NULL;
 
+	ULOG_Output( gs_ptLog, INF, "=== DO BACKUP ===" );
+	ULOG_Output( gs_ptLog, INF, "master=[%s]", ptData->cMaster );
+	ULOG_Output( gs_ptLog, INF, "backup=[%s]", ptData->cBackup );
 
 	for( ;; )
 	{
-		/*====================*/
-		/* ログファイル初期化 */
-		/*====================*/
-		gs_ptLog = ULOG_Open( "c:\\tmp\\bakuplog.txt" );
-		ULOG_SetDeny( gs_ptLog, "DBG" );
-
-
 		/*==========================*/
 		/* マスターファイル一覧作成 */
 		/*==========================*/
@@ -153,7 +227,7 @@ PATHES *BKUP_MakeList( char *pcPath )
 	PATHES *ptRetValue;
 
 
-	ULOG_Output( gs_ptLog, "NTC", "ファイル一覧作成 path=[%s]", pcPath );
+	ULOG_Output( gs_ptLog, INF, "ファイル一覧作成 path=[%s]", pcPath );
 
 
 	/*========================*/
@@ -185,7 +259,7 @@ PATHES *BKUP_MakeList( char *pcPath )
 		goto LABEL_END;
 	}
 
-	ULOG_Output( gs_ptLog, "NTC", "ファイル一覧作成完了" );
+	ULOG_Output( gs_ptLog, INF, "ファイル一覧作成完了" );
 
 LABEL_END:
 	return ptRetValue;
@@ -193,7 +267,7 @@ LABEL_END:
 
 int BKUP_Do_Proc( BKUP *ptData, PATHES *ptMaster, PATHES *ptBackup )
 {
-	ULOG_Output( gs_ptLog, "NTC", "バックアップ処理開始" );
+	ULOG_Output( gs_ptLog, INF, "バックアップ処理開始" );
 
 
 	/*========================*/
@@ -217,7 +291,7 @@ int BKUP_Do_Proc( BKUP *ptData, PATHES *ptMaster, PATHES *ptBackup )
 	( void )BKUP_Do_Proc_DeleteDir( ptData, ptBackup );
 
 
-	ULOG_Output( gs_ptLog, "NTC", "バックアップ処理完了" );
+	ULOG_Output( gs_ptLog, INF, "バックアップ処理完了" );
 	return 0;
 }
 
@@ -237,7 +311,7 @@ int BKUP_Do_Proc_Update( BKUP *ptData, PATHES *ptMaster, PATHES *ptBackup )
 	int    iDelDir;							/**< 要削除ディレクトリ数		 */
 
 
-	ULOG_Output( gs_ptLog, "NTC", "更新分チェック処理開始" );
+	ULOG_Output( gs_ptLog, INF, "更新分チェック処理開始" );
 
 
 	/*====================================*/
@@ -269,9 +343,9 @@ int BKUP_Do_Proc_Update( BKUP *ptData, PATHES *ptMaster, PATHES *ptBackup )
 		}
 		else if( iType == FM_TYPE_FILE )
 		{
-			/* ファイルは、末尾に".zip"を付加したものでチェック */
+			/* ファイルは、末尾に拡張子を付加したものでチェック */
 			strcpy( cPath_Check, cPath );
-			strcat( cPath_Check, ".zip" );
+			strcat( cPath_Check, DEF_EXTRA );
 		}
 
 		ULOG_Output( gs_ptLog, "DBG", "存在チェック path=%s", cPath_Check );
@@ -296,7 +370,7 @@ int BKUP_Do_Proc_Update( BKUP *ptData, PATHES *ptMaster, PATHES *ptBackup )
 
 	}
 
-	ULOG_Output( gs_ptLog, "NTC", "更新分チェック処理完了" );
+	ULOG_Output( gs_ptLog, INF, "更新分チェック処理完了" );
 	return 0;
 }
 
@@ -305,7 +379,7 @@ int BKUP_Do_Proc_DeleteFile( BKUP *ptData, PATHES *ptBackup )
 	int  iIndex;
 	char cPath[ DEF_PATH_MAX ];
 
-	ULOG_Output( gs_ptLog, "NTC", "不要ファイルのチェック処理開始" );
+	ULOG_Output( gs_ptLog, INF, "不要ファイルのチェック処理開始" );
 
 	for( ;; )
 	{
@@ -329,7 +403,7 @@ int BKUP_Do_Proc_DeleteFile( BKUP *ptData, PATHES *ptBackup )
 		FM_delPath( &ptBackup, cPath, FM_TYPE_FILE );
 	}
 
-	ULOG_Output( gs_ptLog, "NTC", "不要ファイルのチェック処理完了" );
+	ULOG_Output( gs_ptLog, INF, "不要ファイルのチェック処理完了" );
 	return 0;
 }
 
@@ -339,7 +413,7 @@ int BKUP_Do_Proc_DeleteDir( BKUP *ptData, PATHES *ptBackup )
 	char cPath[ DEF_PATH_MAX ];
 
 
-	ULOG_Output( gs_ptLog, "NTC", "不要ディレクトリのチェック処理開始" );
+	ULOG_Output( gs_ptLog, INF, "不要ディレクトリのチェック処理開始" );
 
 	for( ;; )
 	{
@@ -363,7 +437,7 @@ int BKUP_Do_Proc_DeleteDir( BKUP *ptData, PATHES *ptBackup )
 		FM_delPath( &ptBackup, cPath, FM_TYPE_DIR );
 	}
 
-	ULOG_Output( gs_ptLog, "NTC", "不要ディレクトリのチェック処理完了" );
+	ULOG_Output( gs_ptLog, INF, "不要ディレクトリのチェック処理完了" );
 	return 0;
 }
 
@@ -373,7 +447,17 @@ int BKUP_Del_Dir( BKUP *ptData, char *pcPath )
 
 	sprintf( cTgtPath, "%s\\%s", ptData->cBackup, pcPath );
 
-	ULOG_Output( gs_ptLog, "NTC", "DEL-DIR  : %s", cTgtPath );
+	if( gs_iTest == 1 )
+	{
+		/* テスト時は、何もしない */
+		;
+	}
+	else
+	{
+		rmdir( cTgtPath );
+	}
+
+	ULOG_Output( gs_ptLog, INF, "DEL-DIR  : %s", cTgtPath );
 
 	return 0;
 }
@@ -384,7 +468,17 @@ int BKUP_Mak_Dir( BKUP *ptData, char *pcPath )
 
 	sprintf( cTgtPath, "%s\\%s", ptData->cBackup, pcPath );
 
-	ULOG_Output( gs_ptLog, "NTC", "MAK-DIR  : %s", cTgtPath );
+	if( gs_iTest == 1 )
+	{
+		/* テスト時は、何もしない */
+		;
+	}
+	else
+	{
+		mkdir( cTgtPath );
+	}
+
+	ULOG_Output( gs_ptLog, INF, "MAK-DIR  : %s", cTgtPath );
 
 	return 0;
 }
@@ -395,9 +489,19 @@ int BKUP_Upd_Fil( BKUP *ptData, char *pcPath )
 	char cSakiPath[ DEF_PATH_MAX ];
 
 	sprintf( cMotoPath, "%s\\%s",     ptData->cMaster, pcPath );
-	sprintf( cSakiPath, "%s\\%s.zip", ptData->cBackup, pcPath );
+	sprintf( cSakiPath, "%s\\%s%s", ptData->cBackup, pcPath, DEF_EXTRA );
 
-	ULOG_Output( gs_ptLog, "NTC", "UPD-FILE : %s ( <- %s )", cSakiPath, cMotoPath );
+	if( gs_iTest == 1 )
+	{
+		/* テスト時は、何もしない */
+		;
+	}
+	else
+	{
+		UF_Compress( cSakiPath, cMotoPath );
+	}
+
+	ULOG_Output( gs_ptLog, INF, "UPD-FILE : %s ( <- %s )", cSakiPath, cMotoPath );
 
 	return 0;
 }
@@ -408,7 +512,17 @@ int BKUP_Del_Fil( BKUP *ptData, char *pcPath )
 
 	sprintf( cTgtPath, "%s\\%s", ptData->cBackup, pcPath );
 
-	ULOG_Output( gs_ptLog, "NTC", "DEL-FILE : %s", cTgtPath );
+	if( gs_iTest == 1 )
+	{
+		/* テスト時は、何もしない */
+		;
+	}
+	else
+	{
+		remove( cTgtPath );
+	}
+
+	ULOG_Output( gs_ptLog, INF, "DEL-FILE : %s", cTgtPath );
 
 	return 0;
 }
