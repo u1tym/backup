@@ -1,120 +1,20 @@
 
-#define   _MAIN
+#define _BACKUP_MAIN
 
 #include  <stdio.h>
 #include  <string.h>
 #include  <stdlib.h>
+
 #include  <sys/types.h>
 #include  <sys/stat.h>
-#include  <dirent.h>
-#include  <time.h>
 #include  <unistd.h>
-#include  <sys/types.h>
 
-#include  "backupsg.h"
-#include  "backuplog.h"
 #include  "search.h"
-#include  "usg.h"
-#include  "ulog.h"
-#include  "ucomp.h"
-#include  "fmmod.h"
 #include  "backup.h"
+#include  "ucomp.h"
 
+#define DEF_EXTRA   ".zip"
 
-
-#if 0
-/** バックアップ処理部分 */
-
-typedef struct tag_BKUP
-{
-	char cMaster[ DEF_PATH_MAX ];
-	char cBackup[ DEF_PATH_MAX ];
-} BKUP;
-
-int     BKUP_Do( BKUP * );
-PATHES *BKUP_MakeList( char * );
-int     BKUP_Do_Proc( BKUP *, PATHES *, PATHES * );
-int     BKUP_Do_Proc_Update( BKUP *, PATHES *, PATHES * );
-int     BKUP_Do_Proc_DeleteFile( BKUP *, PATHES * );
-int     BKUP_Do_Proc_DeleteDir( BKUP *, PATHES * );
-
-int     BKUP_Del_Dir( BKUP *, char * );
-int     BKUP_Mak_Dir( BKUP *, char * );
-int     BKUP_Upd_Fil( BKUP *, char * );
-int     BKUP_Del_Fil( BKUP *, char * );
-
-static int gs_iTest = 1;
-#endif
-
-int main( int iArgc, char *pcArgv[] )
-{
-	int   iRet;					/**< 戻り値参照用							 */
-
-	int   iBackupCnt;			/**< バックアップ用カウンタ					 */
-	int   iBackupMax;			/**< バックアップ用カウンタ（最大数）		 */
-	BKUP  tBackup;				/**< バックアップ対象						 */
-
-
-	/*====================*/
-	/* SGファイル読み込み */
-	/*====================*/
-
-	iRet = BKSG_Init();
-	if( iRet < 0 )
-	{
-		fprintf( stderr, "sg open error\n" );
-		fflush( stderr );
-		return 1;
-	}
-
-
-	/*==============*/
-	/* ログ出力設定 */
-	/*==============*/
-
-	gs_ptLog  = ULOG_Open( BKSG_GetLogPath() );
-
-	ULOG_SetDeny( gs_ptLog, DBG );
-
-
-	/*======================*/
-	/* バックアップ実行設定 */
-	/*======================*/
-
-	if( BKSG_GetDoBackup() == 1 )
-	{
-		gs_iTest = 0;
-	}
-
-
-	/*==================*/
-	/* バックアップ処理 */
-	/*==================*/
-
-	iBackupMax = BKSG_GetBackupMax();
-
-	ULOG_Output( gs_ptLog, INF, "backup=[%d]", iBackupMax );
-
-	for( iBackupCnt = 0; iBackupCnt < iBackupMax; ++iBackupCnt )
-	{
-		memset( &tBackup, 0x00, sizeof( tBackup ) );
-
-		iRet = BKSG_GetBackupRec( tBackup.cMaster,
-								  tBackup.cBackup,
-								  iBackupCnt );
-		if( iRet < 0 )
-		{
-			ULOG_Output( gs_ptLog, ERR, "処理異常" );
-			break;
-		}
-
-		( void )BKUP_Do( &tBackup );
-	}
-
-    return 0;
-}
-
-#if 0
 int BKUP_Do( BKUP *ptData )
 {
 	int    iRet;				/**< 戻り値参照用							 */
@@ -501,4 +401,4 @@ int BKUP_Del_Fil( BKUP *ptData, char *pcPath )
 	return 0;
 }
 
-#endif
+

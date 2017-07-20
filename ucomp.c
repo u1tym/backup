@@ -17,7 +17,7 @@ void UF_Compress_ZIP0( char *, char * );
 
 int UF_Compress( char *pcDst, char *pcSrc )
 {
-#if 0
+#if 1
 	UF_Compress_GZ( pcDst, pcSrc );
 #else
 	char cCom[ 2048 ];
