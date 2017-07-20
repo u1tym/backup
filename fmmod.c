@@ -554,7 +554,9 @@ void FM_dispList( PATHES *ptArea )
         memset( cTime, 0x00, sizeof( cTime ) );
         strftime( cTime, sizeof( cTime ), "%Y/%m/%d %H:%M:%S", ptTime );
 
-        fprintf( stdout, "(%d) %s,\"%s\",%s,%d\n", iIndex, cKind, ptRec->cName, cTime, ptRec->lSize );
+        fprintf( stdout,
+				 "(%d) %s,\"%s\",%s,%d\n",
+				 iIndex, cKind, ptRec->cName, cTime, ( int )( ptRec->lSize ) );
         ++iCount;
     }
     fprintf( stdout, "count=[%d]\n", iCount );

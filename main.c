@@ -5,6 +5,8 @@
 #include  <sys/stat.h>
 #include  <dirent.h>
 #include  <time.h>
+#include  <unistd.h>
+#include  <sys/types.h>
 
 #include  "usg.h"
 #include  "ulog.h"
@@ -475,7 +477,9 @@ int BKUP_Mak_Dir( BKUP *ptData, char *pcPath )
 	}
 	else
 	{
-		mkdir( cTgtPath );
+		mkdir( cTgtPath, S_IRUSR | S_IWUSR | S_IXUSR
+						| S_IRGRP | S_IWGRP | S_IXGRP
+						| S_IROTH | S_IWOTH | S_IXOTH );
 	}
 
 	ULOG_Output( gs_ptLog, INF, "MAK-DIR  : %s", cTgtPath );
