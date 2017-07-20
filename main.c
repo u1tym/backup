@@ -477,9 +477,13 @@ int BKUP_Mak_Dir( BKUP *ptData, char *pcPath )
 	}
 	else
 	{
+#ifdef Linux
 		mkdir( cTgtPath, S_IRUSR | S_IWUSR | S_IXUSR
 						| S_IRGRP | S_IWGRP | S_IXGRP
 						| S_IROTH | S_IWOTH | S_IXOTH );
+#else
+		mkdir( cTgtPath );
+#endif
 	}
 
 	ULOG_Output( gs_ptLog, INF, "MAK-DIR  : %s", cTgtPath );
